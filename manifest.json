@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "JUST NOTES",
+    "version": "2.0.0",
+    "description": "Extension to take notes on any website and save them locally. ",
+    "permissions": [
+        "storage"
+    ],
+    "icons": {
+        "16": "/images/pencil.png"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
