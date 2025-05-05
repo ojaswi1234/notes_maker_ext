@@ -1,0 +1,1 @@
+JustNotes – Simple & Fast Note Saver Capture and save notes instantly with JustNotes! A distraction-free, lightweight note-taking extension that lets you download your thoughts as text files with one click. Perfect for quick ideas, reminders, and lists! 🚀

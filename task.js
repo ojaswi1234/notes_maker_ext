@@ -16,16 +16,41 @@ document.addEventListener('DOMContentLoaded', () => {
             
             a.href = '#';
             a.textContent = note.title || `Note ${index + 1}`; 
-            a.addEventListener('click', (e) => {
-                e.preventDefault();
+            a.style.width = '80%';
+            a.style.textAlign = 'left';
 
-                noteDisplay.innerHTML = `<h3>${note.title}</h3><p>${note.content}</p>`;
-              
-               
+            a.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            noteDisplay.innerHTML = `<h3>${note.title}</h3><p>${note.content}</p>`;
+               const downloadBtn = document.createElement('button');
+               downloadBtn.textContent = 'Download';
+    downloadBtn.style.marginTop = '10px';
+    downloadBtn.style.backgroundColor = '#007bff';
+    downloadBtn.style.color = 'white';
+    downloadBtn.style.border = 'none';
+    downloadBtn.style.padding = '10px';
+    downloadBtn.style.cursor = 'pointer';
+    downloadBtn.addEventListener('click', () => {
+        const blob = new Blob([`Title: ${note.title}\n\nContent: ${note.content}`], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${note.title || 'note'}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+    noteDisplay.appendChild(downloadBtn);
             });
+
+            
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Delete';
             deleteBtn.className = 'delete-btn';
+            deleteBtn.style.backgroundColor = 'red';
+            deleteBtn.style.borderColor = 'red';
+            deleteBtn.style.shadow = '0 0px 20px rgb(255, 94, 94);'
+            
             deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); 
                 notes.splice(index, 1); 
@@ -42,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation(); 
                 noteTitleInput.value = note.title;
                 noteContentTextarea.value = note.content;
-                noteDisplay.innerHTML = `<h3>${note.title}</h3><p>${note.content}</p>`;
                 notes.splice(index, 1);
                 chrome.storage.local.set({ notes }, () => {
                     console.log('Note edited:', note);
@@ -51,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reset();
                 noteTitleInput.value = note.title;
                 noteContentTextarea.value = note.content;
-                noteDisplay.innerHTML = `<h3>${note.title}</h3><p>${note.content}</p>`;
 
             });
             li.appendChild(editBtn);
@@ -59,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
             a.className = 'note-link';
             li.style.display = 'flex';
             li.style.justifyContent = 'space-between';
+            li.style.gap= '5px';
             li.appendChild(a);
 
             li.appendChild(editBtn);

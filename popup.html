@@ -12,6 +12,8 @@
             margin: 0;
             padding: 20px;
             background-color: black;
+            scrollbar-width:none;
+            -ms-overflow-style: none; /* IE and Edge */
         }
         main {
             width: 400px;
@@ -22,6 +24,8 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 20px;
+            scrollbar-width:none;
+            -ms-overflow-style: none; /* IE and Edge */
         }
         h1 {
             text-align: center;
@@ -33,7 +37,7 @@
             color: white;
         }
         input[type="text"] {
-            width: calc(100% - 20px);
+            width: calc(100% - 15px);
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 1px;
@@ -50,18 +54,18 @@
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        button:hover {
+        #save:hover {
             box-shadow: 0 0px 20px rgb(110, 255, 94);
         }
         textarea {
-            width: calc(100% - 30px);
+           width: calc(100% - 15px);
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 1px;
-            border: 6px solid black;
-            resize: none;
+            border: 6px solid transparent;
             outline: none;
             transition: all 0.5s ease-in-out;
+            resize: none;
         }
         textarea:hover, input[type="text"]:hover {
             border-right-color: #28a745;
@@ -81,6 +85,9 @@
             z-index: 1001;
             -webkit-user-select: none;
             user-select: none;
+            scrollbar-width:none;
+            -scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
         }
         #menuToggle input {
             display: block;
@@ -125,8 +132,8 @@
             position: fixed;
             top: 56px;
             right: 0;
-            width: 200px;
-            max-width: 80vw;
+            width: 350px;
+            max-width: 96vw;
             height: calc(100vh - 56px);
             margin: 0;
             padding: 20px;
@@ -137,6 +144,9 @@
             transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0);
             overflow-y: auto;
             z-index: 1000;
+            scrollbar-width:none;
+            -scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
         }
         #menu li {
             padding: 15px 0;
@@ -160,6 +170,7 @@
             color: white;
             border-radius: 4px;
             min-height: 100px;
+            
         }
     </style>
 </head>
@@ -186,7 +197,7 @@
             <label for="note-content">Content</label>
             <textarea id="note-content" name="note-content" rows="4" placeholder="Enter your Notes here...."></textarea>
             <br>
-            <button type="submit">Save Note</button>
+            <button id="save" type="submit">Save Note</button>
         </form>
         <div id="note-display"></div>
     </main>
