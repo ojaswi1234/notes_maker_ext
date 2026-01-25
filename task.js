@@ -122,4 +122,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+
+const snapshotBtn = document.querySelector('#snapshots-mode');
+if (snapshotBtn) {
+    snapshotBtn.addEventListener('click', () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.sendMessage(tabs[0].id, { action: 'createSnapshot' }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('Error:', chrome.runtime.lastError.message);
+                    alert('Please reload the webpage first, then try again.');
+                } else if (response && !response.success) {
+                    alert(response.message);  // Shows "Snapshot mode is already active!"
+                } else {
+                    console.log('Snapshot Mode Activated!!!');
+                }
+            });
+        });
+    });
+}
+
+
+   
 });

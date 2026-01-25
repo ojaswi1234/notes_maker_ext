@@ -132,7 +132,7 @@
             position: fixed;
             top: 56px;
             right: 0;
-            width: 350px;
+           
             max-width: 96vw;
             height: calc(100vh - 56px);
             margin: 0;
@@ -145,7 +145,8 @@
             overflow-y: auto;
             z-index: 1000;
             scrollbar-width:none;
-            -scrollbar-width: none; /* Firefox */
+            -scrollbar-width: none; 
+            width: 350px;/* Firefox */
             -ms-overflow-style: none; /* IE and Edge */
         }
         #menu li {
@@ -172,6 +173,20 @@
             min-height: 100px;
             
         }
+
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #snapshots-mode {
+            background-image: linear-gradient(90deg, pink, orange, yellow);
+            animation: gradientAnimation 3s infinite;
+            border: none;
+            color: black;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -190,7 +205,7 @@
                 </div>
             </nav>
         </header>
-        <h1>Notes</h1>
+        <h1>JUST_Notes</h1>
         <form id="note-form">
             <label for="note-title">Title</label>
             <input type="text" id="note-title" name="note-title">
@@ -198,10 +213,12 @@
             <label for="note-content">Content</label>
             <textarea id="note-content" name="note-content" rows="4" placeholder="Enter your Notes as per priority..."></textarea>
             <br>
+            <button type="button" id="snapshots-mode">Use SnapShots Mode</button>
             <button id="save" type="submit">Save Note</button>
         </form>
         <div id="note-display"></div>
     </main>
+    
     <script src="task.js"></script>
 </body>
 </html>

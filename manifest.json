@@ -9,10 +9,17 @@
     "icons": {
         "16": "/images/pencil.png"
     },
+    
     "content_scripts": [
         {
             "matches": ["<all_urls>"],
             "js": ["content.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["/images/*"],
+            "matches": ["<all_urls>"]
         }
     ],
     "action": {
