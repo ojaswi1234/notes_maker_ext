@@ -191,20 +191,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse, ) => {
         const binIcon = chrome.runtime.getURL('images/bin-svgrepo-com.svg');
         const csIcon = chrome.runtime.getURL('images/camera-svgrepo-com.svg');
         sidebar.innerHTML = `
-            <button class="sidebar-btn" data-tool="pencil" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Use Pencil" title="Use Pencil">
+            <button id="pencil-btn" class="sidebar-btn" data-tool="pencil" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Use Pencil" title="Use Pencil">
                 <img src="${pencilIcon}" alt="pencil" style="width: 28px; height: 28px; background-color: transparent; border: none">
             </button>
-            <button class="sidebar-btn" data-tool="eraser" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Use Eraser" title="Use Eraser">
+            <button id="eraser-btn" class="sidebar-btn" data-tool="eraser" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Use Eraser" title="Use Eraser">
                 <img src="${erasericon}" alt="eraser" style="width: 28px; height: 28px; background-color: transparent; border: none">
             </button>
-            <button class="sidebar-btn" data-tool="textbox" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Add Text Box" title="Add Text Box">
+            <button id="textbox-btn" class="sidebar-btn" data-tool="textbox" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Add Text Box" title="Add Text Box">
                 <img src="${textBoxIcon}" alt="textbox" style="width: 28px; height: 28px; background-color: transparent; border: none">
             </button>
-            <button class="sidebar-btn" data-tool="bin" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Bin" title="Bin">
+            <button id="bin-btn" class="sidebar-btn" data-tool="bin" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Bin" title="Bin">
                 <img src="${binIcon}" alt="bin" style="width: 28px; height: 28px; background-color: transparent; border: none">
             </button>
-            <button class="sidebar-btn" data-tool="camera" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Click Snapshot" title="Click Snapshot">
-                <img src="${csIcon}" alt="camera" style="width: 28px; height: 28px; background-color: transparent; border: none">
+            <button id="snapshot-btn" class="sidebar-btn" data-tool="Snapshot" style="padding: 5px; cursor: pointer; background-color: transparent; border: none;" aria-label="Click Snapshot" title="Click Snapshot">
+                <img src="${csIcon}" alt="click Snapshot" style="width: 28px; height: 28px; background-color: transparent; border: none">
             </button>
             <hr style="width: 90%; border: 0.5px solid #ccc; margin: 10px 0;">
             <button id="open-notes-nav-btn" class="sidebar-btn" style="cursor: pointer; background-color: transparent; border: none;" aria-label="Open Notes Navigation" title="Open Notes Navigation">
@@ -216,7 +216,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse, ) => {
         `;
 
         // Add hover animation to all sidebar buttons
+       
         const sidebarButtons = sidebar.querySelectorAll('.sidebar-btn');
+
+
        
 
         const bottomNav = document.createElement('div');
@@ -272,6 +275,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse, ) => {
             });
         }
 
+
+        
+
         if (closeSidebarBtn) {
             closeSidebarBtn.addEventListener('click', () => {
                 const container = document.getElementById('snapshot-overlay-container');
@@ -283,8 +289,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse, ) => {
                 }
             });
         }
+        
+        
+        const changeCursor = (sidebarButtons, sidebarPencil, erasericon, binIcon) => {
+            sidebarButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tool = button.getAttribute('data-tool');
+                    if (tool === 'pencil') {
+                        document.body.style.cursor = `crosshair`;
+                    } else if (tool === 'eraser') {
+                        document.body.style.cursor = `cell`;
+                    } else if (tool === 'textbox') {
+                        document.body.style.cursor = 'text';
+                    } else if (tool === 'bin') {
+                        document.body.style.cursor = ``;
+                    } else {
+                        document.body.style.cursor = 'default';
+                    }  
+                });
+            });
+        };
 
+
+        changeCursor(sidebarButtons, pencilIcon, erasericon, binIcon);
         sendResponse({ success: true , message: 'Snapshot sidebar created.'});
+        
         } catch (error) {
             console.error('Error creating snapshot sidebar:', error);
             sendResponse({ success: false, message: 'Failed to create snapshot: ' + error.message });
