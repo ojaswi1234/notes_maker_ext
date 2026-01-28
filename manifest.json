@@ -2,12 +2,16 @@
     "manifest_version": 3,
     "name": "JUST NOTES",
     "version": "2.0.0",
-    "description": "Extension to take notes on any website and save them locally. ",
+    "description": "Extension to take notes on any website and save them locally. New SnapShot Mode is even better and swift, allowing quick and easy screenshots with annotations. The perfect tool for capturing and annotating your ideas on the fly.  Do Try it out and please share your precious feedback! (for improvement)",
     "permissions": [
-        "storage"
+        "storage",
+        "activeTab"
+    ],
+    "host_permissions": [
+        "<all_urls>"
     ],
     "icons": {
-        "16": "/images/pencil.png"
+        "16": "images/pencil.png"
     },
     
     "content_scripts": [
@@ -18,7 +22,7 @@
     ],
     "web_accessible_resources": [
         {
-            "resources": ["/images/*"],
+            "resources": ["images/*", "images/sidebar_icons/*"],
             "matches": ["<all_urls>"]
         }
     ],
