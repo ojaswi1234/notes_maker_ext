@@ -5,7 +5,8 @@
     "description": "Extension to take notes on any website and save them locally. New SnapShot Mode is even better and swift, allowing quick and easy screenshots with annotations. The perfect tool for capturing and annotating your ideas on the fly.  Do Try it out and please share your precious feedback! (for improvement)",
     "permissions": [
         "storage",
-        "activeTab"
+        "activeTab",
+        "tabs"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -13,7 +14,9 @@
     "icons": {
         "16": "images/pencil.png"
     },
-    
+    "background": {
+        "service_worker": "background.js"
+    },
     "content_scripts": [
         {
             "matches": ["<all_urls>"],
