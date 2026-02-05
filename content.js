@@ -298,7 +298,7 @@
                     const grid = document.getElementById('jn-snapshots-grid');
                     const downloadBtn = document.getElementById('download-stitched');
                     
-                    downloadBtn.textContent = `⬇️ Download Stitched Snapshot (${capturedSnapshots.length})`;
+                    downloadBtn.textContent = `⬇ Download Stitched Snapshot (${capturedSnapshots.length})`;
                     downloadBtn.disabled = capturedSnapshots.length === 0;
                     
                     grid.innerHTML = '';
