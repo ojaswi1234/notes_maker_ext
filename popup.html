@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: black;
+            scrollbar-width:none;
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        main {
+            width: 400px;
+            margin: auto;
+            background: black;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 20px;
+            scrollbar-width:none;
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        h1 {
+            text-align: center;
+            color: white;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: white;
+        }
+        input[type="text"] {
+            width: calc(100% - 15px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 1px;
+            border: 6px solid transparent;
+            outline: none;
+            transition: all 0.5s ease-in-out;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border: 2px solid #28a745;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #save:hover {
+            box-shadow: 0 0px 20px rgb(110, 255, 94);
+        }
+        textarea {
+           width: calc(100% - 15px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 1px;
+            border: 6px solid transparent;
+            outline: none;
+            transition: all 0.5s ease-in-out;
+            resize: none;
+        }
+        textarea:hover, input[type="text"]:hover {
+            border-right-color: #28a745;
+            border-left-color: #28a745;
+        }
+        #mobile-nav {
+            display: block;
+        }
+        #menuToggle {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            width: 40px;
+            height: 40px;
+            z-index: 1001;
+            -webkit-user-select: none;
+            user-select: none;
+            scrollbar-width:none;
+            -scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        #menuToggle input {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+            opacity: 0;
+            z-index: 2;
+        }
+        #menuToggle span {
+            display: block;
+            width: 28px;
+            height: 3px;
+            margin-bottom: 5px;
+            position: relative;
+            background: #cdcdcd;
+            border-radius: 3px;
+            z-index: 1;
+            transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
+                       background 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
+                       opacity 0.55s ease;
+        }
+        #menuToggle span:last-child {
+            margin-bottom: 0;
+        }
+        #menuToggle input:checked ~ span {
+            opacity: 1;
+            transform: rotate(45deg) translate(-2px, -1px);
+            background: white;
+        }
+        #menuToggle input:checked ~ span:nth-last-child(3) {
+            opacity: 0;
+            transform: rotate(0deg) scale(0.2, 0.2);
+        }
+        #menuToggle input:checked ~ span:nth-last-child(2) {
+            transform: rotate(-45deg) translate(0, -1px);
+        }
+        #menu {
+            position: fixed;
+            top: 56px;
+            right: 0;
+           
+            max-width: 96vw;
+            height: calc(100vh - 56px);
+            margin: 0;
+            padding: 20px;
+            background: #ffffff;
+            color: black;
+            list-style-type: none;
+            transform: translateX(100%);
+            transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0);
+            overflow-y: auto;
+            z-index: 1000;
+            scrollbar-width:none;
+            -scrollbar-width: none; 
+            width: 350px;/* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        #menu li {
+            padding: 15px 0;
+            font-size: 1rem;
+        }
+        #menu a {
+            color: black;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        #menu a:hover {
+            color: orange;
+        }
+        #menuToggle input:checked ~ ul {
+            transform: translateX(0);
+        }
+        #note-display {
+            margin-top: 20px;
+            padding: 10px;
+            background: #222;
+            color: white;
+            border-radius: 4px;
+            min-height: 100px;
+            
+        }
+
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #snapshots-mode {
+            background-image: linear-gradient(90deg, pink, orange, yellow);
+            animation: gradientAnimation 3s infinite;
+            border: none;
+            color: black;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <nav id="mobile-nav">
+                <div id="menuToggle">
+                    <input type="checkbox" id="menuBox" />
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <ul id="menu">
+                        
+                        <!-- Notes will be dynamically added here -->
+                    </ul>
+                </div>
+            </nav>
+        </header>
+        <h1>JUST_Notes</h1>
+        <form id="note-form">
+            <label for="note-title">Title</label>
+            <input type="text" id="note-title" name="note-title">
+            <br>
+            <label for="note-content">Content</label>
+            <textarea id="note-content" name="note-content" rows="4" placeholder="Enter your Notes as per priority..."></textarea>
+            <br>
+            <button type="button" id="snapshots-mode">Use SnapShots Mode</button>
+            <button id="save" type="submit">Save Note</button>
+        </form>
+        <div id="note-display"></div>
+    </main>
+    
+    <script src="task.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "JUST NOTES",
+    "version": "2.0.2",
+    "description": "Transform any webpage into your study canvas. Highlight, annotate, add notes & capture beautiful stitched screenshots. Try it now!",
+    "permissions": [
+        "storage",
+        "activeTab",
+        "tabs"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "icons": {
+        "16": "images/pencil.png"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["images/*", "images/sidebar_icons/*"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
