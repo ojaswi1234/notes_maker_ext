@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "JUST NOTES",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "description": "Transform any webpage into your study canvas. Highlight, annotate, add notes & capture beautiful stitched screenshots. Try it now!",
     "permissions": [
         "storage",

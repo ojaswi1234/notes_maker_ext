@@ -71,15 +71,15 @@
                     <div id="jn-open-notes" title="View Notes" style="font-weight:900; color:green; cursor:pointer; font-family:sans-serif; font-size:18px;">N</div>
                     <div id="jn-close" title="Exit" style="font-weight:900; color:red; cursor:pointer; font-family:sans-serif; font-size:18px;">X</div>
                 `;
-                
+
                 sidebar.querySelectorAll('img').forEach(img => img.style.cssText = "width:28px; cursor:pointer; transition: transform 0.2s;");
                 sidebar.querySelectorAll('img').forEach(img => {
                     img.addEventListener('mouseover', () => img.style.transform = 'scale(1.2)');
                     img.addEventListener('mouseout', () => img.style.transform = 'scale(1)');
                 });
                 sidebar.querySelectorAll('div').forEach(div => {
-                        div.addEventListener('mouseover', () => div.style.transform = 'scale(1.2)');
-                        div.addEventListener('mouseout', () => div.style.transform = 'scale(1)');
+                    div.addEventListener('mouseover', () => div.style.transform = 'scale(1.2)');
+                    div.addEventListener('mouseout', () => div.style.transform = 'scale(1)');
                 });
 
                 // 3. Drawing Canvas - single canvas covering entire document
@@ -91,9 +91,9 @@
                     left: 0;
                     pointer-events: none;
                 `;
-                
+
                 const ctx = canvas.getContext("2d", { willReadFrequently: true });
-                
+
                 // Update canvas to match full document size
                 function updateCanvasSize() {
                     const docHeight = Math.max(
@@ -110,33 +110,72 @@
                         document.documentElement.offsetWidth,
                         window.innerWidth
                     );
-                    
+
                     // Only resize if dimensions changed (to preserve drawings)
                     if (canvas.width !== docWidth || canvas.height !== docHeight) {
                         // Save current drawing
                         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        
+
                         // Resize canvas
                         canvas.width = docWidth;
                         canvas.height = docHeight;
                         canvas.style.width = `${docWidth}px`;
                         canvas.style.height = `${docHeight}px`;
-                        
+
                         // Also update overlay
                         overlay.style.width = `${docWidth}px`;
                         overlay.style.height = `${docHeight}px`;
-                        
+
                         // Restore drawing
                         ctx.putImageData(imageData, 0, 0);
                     }
                 }
-                
+                // --- SMART POINTER LOGIC ---
+
+                // Listen to mouse moves globally (even when canvas is "off")
+                window.addEventListener('mousemove', (e) => {
+                    // If a tool is active, don't interfere (the tool manages pointer-events)
+                    if (currentTool) return;
+
+                    const coords = getDocCoords(e);
+                    const hoverX = coords.x;
+                    const hoverY = coords.y;
+
+                    // Check if we are hovering over ANY saved note
+                    const isHoveringNote = cachedNotes.some(note => {
+                        if (!note.geometry) return false;
+                        return (hoverX >= note.geometry.x && hoverX <= note.geometry.x + note.geometry.w &&
+                            hoverY >= note.geometry.y && hoverY <= note.geometry.y + note.geometry.h);
+                    });
+
+                    if (isHoveringNote) {
+                        // We are over a note! Turn the canvas ON so we can click it
+                        canvas.style.pointerEvents = 'auto';
+                        document.body.style.cursor = 'pointer';
+                    } else {
+                        // We are looking at the website. Turn the canvas OFF so we can interact with the page
+                        canvas.style.pointerEvents = 'none';
+                        document.body.style.cursor = 'default';
+                    }
+                });
+
                 let isDrawing = false;
                 let currentTool = null;
                 let currentColor = null;
                 let startX, startY;
                 let savedImageData;
-                
+                let cachedNotes = []; // Local mirror for instant hit-testing
+
+                // Sync immediately on load
+                function syncNotesCache() {
+                    chrome.storage.local.get({ allNotes: [] }, (data) => {
+                        cachedNotes = data.allNotes;
+                    });
+                }
+
+                // CRITICAL: Call sync on initialization
+                syncNotesCache();
+
                 // 4. Notes Panel (Bottom Sheet)
                 const notesPanel = document.createElement("div");
                 notesPanel.style.cssText = `
@@ -177,10 +216,10 @@
                     display: flex;
                     flex-direction: column;
                 `;
-                
+
                 // Array to store captured snapshots
                 const capturedSnapshots = [];
-                
+
                 snapshotPanel.innerHTML = `
                     <div style="position: sticky; top: 0; background: rgba(255,255,255,0.98); z-index: 10; display:flex; justify-content:space-between; margin-bottom:15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
                         <h2 style="margin:0; font-family:sans-serif;">Snapshot Tools</h2>
@@ -235,16 +274,16 @@
                 document.body.appendChild(snapshotPanel);
 
                 // --- LOGIC ---
-                
+
                 // Initialize canvas size
                 updateCanvasSize();
-                
+
                 // Update canvas size on scroll and resize
                 let resizeTimeout;
                 window.addEventListener('scroll', () => {
                     updateCanvasSize();
                 }, { passive: true });
-                
+
                 window.addEventListener('resize', () => {
                     clearTimeout(resizeTimeout);
                     resizeTimeout = setTimeout(() => {
@@ -257,7 +296,7 @@
                     img.addEventListener('click', (e) => {
                         const tool = e.target.dataset.tool;
                         activateTool(tool);
-                        
+
                         // Visual feedback
                         sidebar.querySelectorAll('img').forEach(i => i.style.transform = 'scale(1)');
                         e.target.style.transform = 'scale(1.2)';
@@ -265,7 +304,7 @@
                 });
 
 
-              
+
 
                 document.getElementById('jn-close').addEventListener('click', () => {
                     overlay.remove();
@@ -303,16 +342,16 @@
                 function updateSnapshotsUI() {
                     const grid = document.getElementById('jn-snapshots-grid');
                     const downloadBtn = document.getElementById('download-stitched');
-                    
+
                     downloadBtn.textContent = `⬇ Download Stitched Snapshot (${capturedSnapshots.length})`;
                     downloadBtn.disabled = capturedSnapshots.length === 0;
-                    
+
                     grid.innerHTML = '';
                     if (capturedSnapshots.length === 0) {
                         grid.innerHTML = '<p style="color:#999; font-family:sans-serif; font-size:13px; text-align:center;">No snapshots yet. Click "Capture Snapshot" to start.</p>';
                         return;
                     }
-                    
+
                     capturedSnapshots.forEach((snapshot, index) => {
                         const item = document.createElement('div');
                         item.style.cssText = `
@@ -333,7 +372,7 @@
                         `;
                         grid.appendChild(item);
                     });
-                    
+
                     // Add delete handlers
                     grid.querySelectorAll('.jn-delete-snapshot').forEach(btn => {
                         btn.addEventListener('click', (e) => {
@@ -343,7 +382,7 @@
                         });
                     });
                 }
-                
+
                 // Initialize snapshots UI
                 updateSnapshotsUI();
 
@@ -353,16 +392,16 @@
                     snapshotPanel.style.display = 'none';
                     notesPanel.style.display = 'none';
                     overlay.style.display = 'none';
-                    
+
                     // Get current viewport info
                     const vX = window.scrollX || window.pageXOffset;
                     const vY = window.scrollY || window.pageYOffset;
                     const vw = window.innerWidth;
                     const vh = window.innerHeight;
-                    
+
                     // Wait for browser to repaint without UI elements
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    
+
                     // Request screenshot from background script
                     chrome.runtime.sendMessage({ action: "captureTab" }, (response) => {
                         // Restore all UI elements
@@ -370,23 +409,23 @@
                         snapshotPanel.style.display = 'flex';
                         notesPanel.style.display = 'flex';
                         overlay.style.display = 'block';
-                        
+
                         if (response && response.imageUrl) {
                             // Create final composite canvas
                             const finalCanvas = document.createElement('canvas');
                             finalCanvas.width = vw;
                             finalCanvas.height = vh;
                             const finalCtx = finalCanvas.getContext('2d');
-                            
+
                             // Load the screenshot
                             const img = new Image();
                             img.onload = () => {
                                 // Draw the webpage screenshot
                                 finalCtx.drawImage(img, 0, 0, vw, vh);
-                                
+
                                 // Overlay the drawings from our canvas (current viewport portion)
                                 finalCtx.drawImage(canvas, vX, vY, vw, vh, 0, 0, vw, vh);
-                                
+
                                 // Save to snapshots array instead of downloading
                                 capturedSnapshots.push({
                                     dataUrl: finalCanvas.toDataURL('image/png'),
@@ -404,7 +443,7 @@
                             snapshotCanvas.height = vh;
                             const snapshotCtx = snapshotCanvas.getContext('2d');
                             snapshotCtx.drawImage(canvas, vX, vY, vw, vh, 0, 0, vw, vh);
-                            
+
                             // Save to snapshots array
                             capturedSnapshots.push({
                                 dataUrl: snapshotCanvas.toDataURL('image/png'),
@@ -416,24 +455,24 @@
                         }
                     });
                 });
-                
+
                 // Download stitched snapshot
                 document.getElementById('download-stitched').addEventListener('click', async () => {
                     if (capturedSnapshots.length === 0) return;
-                    
+
                     // Calculate total height (stitch vertically)
                     const maxWidth = Math.max(...capturedSnapshots.map(s => s.width));
                     const totalHeight = capturedSnapshots.reduce((sum, s) => sum + s.height, 0);
-                    
+
                     const stitchedCanvas = document.createElement('canvas');
                     stitchedCanvas.width = maxWidth;
                     stitchedCanvas.height = totalHeight;
                     const stitchedCtx = stitchedCanvas.getContext('2d');
-                    
+
                     // Fill with white background
                     stitchedCtx.fillStyle = '#ffffff';
                     stitchedCtx.fillRect(0, 0, maxWidth, totalHeight);
-                    
+
                     // Load and draw each snapshot
                     let currentY = 0;
                     for (const snapshot of capturedSnapshots) {
@@ -447,14 +486,14 @@
                             img.src = snapshot.dataUrl;
                         });
                     }
-                    
+
                     // Download the stitched image
                     const link = document.createElement('a');
                     link.download = `stitched-snapshot-${new Date().getTime()}.png`;
                     link.href = stitchedCanvas.toDataURL('image/png');
                     link.click();
                 });
-                
+
                 // Clear all snapshots
                 document.getElementById('clear-snapshots').addEventListener('click', () => {
                     if (capturedSnapshots.length > 0 && confirm('Clear all captured snapshots?')) {
@@ -472,10 +511,10 @@
 
                     // Enable canvas interaction
                     canvas.style.pointerEvents = "auto";
-                    
+
                     if (tool === 'pencil') document.body.style.cursor = `url(${icons.pencil}) 0 20, auto`;
                     else if (tool === 'eraser') document.body.style.cursor = `url(${icons.eraser}) 0 20, auto`;
-                    else if (tool === 'textbox') document.body.style.cursor =  `url(${icons.textbox}) 0 20, auto`;
+                    else if (tool === 'textbox') document.body.style.cursor = `url(${icons.textbox}) 0 20, auto`;
                 }
 
                 // Helper function to get document coordinates from mouse event
@@ -490,16 +529,36 @@
 
                 // Canvas Events - use document coordinates
                 canvas.addEventListener('mousedown', (e) => {
-                    if (!currentTool || currentTool === 'bin') return;
-                    
-                    // Get document coordinates (not viewport coordinates)
+                    // 1. CLICK SEARCH: Check if we clicked an existing note FIRST
                     const coords = getDocCoords(e);
-                    startX = coords.x;
-                    startY = coords.y;
-                    
+                    const clickX = coords.x;
+                    const clickY = coords.y;
+
+                    // Search our local cache for a hit
+                    const clickedNote = cachedNotes.find(note => {
+                        if (!note.geometry) return false; // Ignore old notes without coordinates
+                        return (clickX >= note.geometry.x && clickX <= note.geometry.x + note.geometry.w &&
+                            clickY >= note.geometry.y && clickY <= note.geometry.y + note.geometry.h);
+                    });
+
+                    if (clickedNote) {
+                        // HIT FOUND: Show the note and STOP here
+                        displayNoteDialog(clickedNote);
+                        return;
+                    }
+
+                    // 2. DRAWING LOGIC: If no hit, proceed with standard tool logic
+                    if (!currentTool || currentTool === 'bin') return;
+
+                    // Hide any open note dialog if we are starting a drawing
+                    removeExistingNoteDialog();
+
+                    startX = clickX;
+                    startY = clickY;
+
                     isDrawing = true;
                     ctx.beginPath();
-                    
+
                     if (currentTool === 'textbox') {
                         savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         // Generate random color for this selection
@@ -541,24 +600,25 @@
                         const coords = getDocCoords(e);
                         const x = coords.x;
                         const y = coords.y;
-                        
+
                         // Clear the selection rectangle
                         ctx.putImageData(savedImageData, 0, 0);
                         const w = x - startX;
                         const h = y - startY;
-                        
+
                         // Re-draw the highlight permanently
                         ctx.strokeStyle = currentColor;
                         ctx.lineWidth = 2;
                         ctx.strokeRect(startX, startY, w, h);
-                        
+
                         // Add a light fill for the "marker" effect
-                        ctx.fillStyle = currentColor.replace('0.7', '0.2'); 
+                        ctx.fillStyle = currentColor.replace('0.7', '0.2');
                         ctx.fillRect(startX, startY, w, h);
 
                         // Prevent accidental tiny clicks
                         if (Math.abs(w) > 20 && Math.abs(h) > 20) {
-                            createStickyNote(e.clientX, e.clientY, w, h);
+                            // Pass document coordinates used for drawing, not viewport coords
+                            createStickyNote(startX, startY, w, h);
                         }
                     }
                 });
@@ -580,11 +640,11 @@
                         box-shadow: 0 5px 15px rgba(0,0,0,0.3);
                         border-radius: 5px;
                     `;
-                    
+
                     const textarea = document.createElement("textarea");
                     textarea.placeholder = "Type your note here...";
                     textarea.style.cssText = "width:100%; height:80px; margin-bottom:10px; font-family:sans-serif;";
-                    
+
                     const btn = document.createElement("button");
                     btn.textContent = "Save Note";
                     btn.style.cssText = `width:100%; background:${currentColor}; color:white; border:none; padding:8px; cursor:pointer; border-radius:3px;`;
@@ -603,7 +663,7 @@
                     btn.onclick = () => {
                         const content = textarea.value.trim();
                         if (content) {
-                            saveNote(content);
+                            saveNote(content, x, y, w, h);
                         }
                         sticky.remove();
                         document.removeEventListener('keydown', closeHandler);
@@ -614,20 +674,34 @@
                     };
                 }
 
-                function saveNote(content) {
+                function saveNote(content, docX, docY, w, h) {
                     chrome.storage.local.get({ allNotes: [] }, (data) => {
                         const notes = data.allNotes;
+
+                        // Normalize coordinates to handle negative width/height (drag left/up)
+                        const geometry = {
+                            x: w < 0 ? docX + w : docX,
+                            y: h < 0 ? docY + h : docY,
+                            w: Math.abs(w),
+                            h: Math.abs(h)
+                        };
+
                         notes.push({
                             content: content,
                             title: content.substring(0, 15) + (content.length > 15 ? "..." : ""),
+                            coords: { x: docX, y: docY },
                             date: new Date().toISOString(),
                             boxColor: `${currentColor}`,
-                            sourceUrl: window.location.href
+                            sourceUrl: window.location.href,
+                            geometry: geometry
                         });
                         chrome.storage.local.set({ allNotes: notes }, () => {
-                            // Flash sidebar button green to indicate save?
+                            // CRITICAL: Update local cache after saving
+                            syncNotesCache();
+
+                            // Flash sidebar button green to indicate save
                             const nBtn = document.getElementById('jn-open-notes');
-                            if(nBtn) nBtn.style.color = "#00ff00";
+                            if (nBtn) nBtn.style.color = "#00ff00";
                             setTimeout(() => nBtn.style.color = "green", 500);
                         });
                     });
@@ -647,7 +721,7 @@
                         const notesByDate = {};
                         // Sort by date descending
                         const sortedNotes = data.allNotes.sort((a, b) => new Date(b.date) - new Date(a.date));
-                        
+
                         sortedNotes.forEach(note => {
                             const dateObj = new Date(note.date);
                             const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -659,7 +733,7 @@
                             // Date Header
                             const dateSection = document.createElement('div');
                             dateSection.style.marginBottom = "25px";
-                            
+
                             const header = document.createElement('div');
                             header.innerHTML = `
                                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -718,9 +792,9 @@
                                         chrome.storage.local.get({ allNotes: [] }, (delData) => {
                                             const allNotes = delData.allNotes;
                                             // Find and remove the note
-                                            const noteToDelete = allNotes.find(n => 
-                                                n.content === note.content && 
-                                                n.date === note.date && 
+                                            const noteToDelete = allNotes.find(n =>
+                                                n.content === note.content &&
+                                                n.date === note.date &&
                                                 n.sourceUrl === note.sourceUrl
                                             );
                                             const indexToDelete = allNotes.indexOf(noteToDelete);
@@ -770,6 +844,62 @@
                             container.appendChild(dateSection);
                         });
                     });
+                }
+                function removeExistingNoteDialog() {
+                    const existing = document.getElementById('jn-note-display-dialog');
+                    if (existing) existing.remove();
+                }
+
+                function displayNoteDialog(note) {
+                    removeExistingNoteDialog(); // Close any other open notes
+
+                    const dialog = document.createElement("div");
+                    dialog.id = 'jn-note-display-dialog';
+
+                    // CSS to make it look good but constrained
+                    dialog.style.cssText = `
+        position: absolute;
+        left: ${note.geometry.x}px;
+        top: ${note.geometry.y + note.geometry.h + 10}px;
+        width: 300px; 
+        max-width: 90vw;
+        max-height: 200px;
+        overflow-y: auto;
+        background: white;
+        border: 2px solid ${note.boxColor};
+        border-radius: 5px;
+        padding: 10px;
+        z-index: 2147483648;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        font-family: sans-serif;
+        color: black;
+    `;
+
+                    // Note Content
+                    const text = document.createElement("p");
+                    text.style.margin = "0";
+                    text.style.whiteSpace = "pre-wrap";
+                    text.textContent = note.content;
+
+                    // Close Hint
+                    const closeHint = document.createElement("div");
+                    closeHint.innerHTML = "<small>Click anywhere else to close</small>";
+                    closeHint.style.cssText = "margin-top:10px; color:#666; font-size:10px; text-align:right; border-top:1px solid #eee; padding-top:5px;";
+
+                    dialog.appendChild(text);
+                    dialog.appendChild(closeHint);
+                    document.body.appendChild(dialog);
+
+                    // Click-outside listener to close the dialog
+                    setTimeout(() => {
+                        const closeHandler = (e) => {
+                            if (!dialog.contains(e.target)) {
+                                dialog.remove();
+                                document.removeEventListener('click', closeHandler);
+                            }
+                        };
+                        document.addEventListener('click', closeHandler);
+                    }, 10);
                 }
 
                 sendResponse({ success: true, message: "Snapshot sidebar activated" });
