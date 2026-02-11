@@ -12,6 +12,10 @@
                     return true;
                 }
 
+                // SMART INIT: Detect extremely long pages for performance scaling
+                const isExtremelyLongPage = document.documentElement.scrollHeight > 10000;
+                console.log(`📏 Page height: ${document.documentElement.scrollHeight}px - Performance mode: ${isExtremelyLongPage ? 'GPU-OPTIMIZED' : 'STANDARD'}`);
+
                 // 1. Create Main Overlay (Click-through enabled)
                 const overlay = document.createElement("div");
                 overlay.id = "snapshot-overlay-container";
@@ -85,14 +89,34 @@
                 // 3. Drawing Canvas - single canvas covering entire document
                 const canvas = document.createElement("canvas");
                 canvas.id = "jn-drawing-canvas";
-                canvas.style.cssText = `
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    pointer-events: none;
-                `;
+                
+                // CONDITIONAL SETUP: Apply GPU optimizations only for extremely long pages
+                if (isExtremelyLongPage) {
+                    canvas.style.cssText = `
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        pointer-events: none;
+                        will-change: transform;
+                        transform: translateZ(0);
+                        backface-visibility: hidden;
+                    `;
+                } else {
+                    // Standard canvas for maximum text crispness
+                    canvas.style.cssText = `
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        pointer-events: none;
+                    `;
+                }
 
-                const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                const ctx = canvas.getContext("2d");
+                
+                // Performance optimization for extremely long pages
+                if (isExtremelyLongPage) {
+                    ctx.imageSmoothingEnabled = false; // Speeds up drawing on huge bitmaps
+                }
 
                 // Update canvas to match full document size
                 function updateCanvasSize() {
@@ -130,51 +154,24 @@
                         ctx.putImageData(imageData, 0, 0);
                     }
                 }
-                // --- SMART POINTER LOGIC ---
-
-                // Listen to mouse moves globally (even when canvas is "off")
-                window.addEventListener('mousemove', (e) => {
-                    // If a tool is active, don't interfere (the tool manages pointer-events)
-                    if (currentTool) return;
-
-                    const coords = getDocCoords(e);
-                    const hoverX = coords.x;
-                    const hoverY = coords.y;
-
-                    // Check if we are hovering over ANY saved note
-                    const isHoveringNote = cachedNotes.some(note => {
-                        if (!note.geometry) return false;
-                        return (hoverX >= note.geometry.x && hoverX <= note.geometry.x + note.geometry.w &&
-                            hoverY >= note.geometry.y && hoverY <= note.geometry.y + note.geometry.h);
-                    });
-
-                    if (isHoveringNote) {
-                        // We are over a note! Turn the canvas ON so we can click it
-                        canvas.style.pointerEvents = 'auto';
-                        document.body.style.cursor = 'pointer';
-                    } else {
-                        // We are looking at the website. Turn the canvas OFF so we can interact with the page
-                        canvas.style.pointerEvents = 'none';
-                        document.body.style.cursor = 'default';
-                    }
-                });
+                
+                // Helper function to get document coordinates from mouse event
+                function getDocCoords(e) {
+                    const scrollX = window.scrollX || window.pageXOffset;
+                    const scrollY = window.scrollY || window.pageYOffset;
+                    return {
+                        x: e.clientX + scrollX,
+                        y: e.clientY + scrollY
+                    };
+                }
 
                 let isDrawing = false;
                 let currentTool = null;
                 let currentColor = null;
                 let startX, startY;
                 let savedImageData;
-                let cachedNotes = []; // Local mirror for instant hit-testing
-
-                // Sync immediately on load
-                function syncNotesCache() {
-                    chrome.storage.local.get({ allNotes: [] }, (data) => {
-                        cachedNotes = data.allNotes;
-                    });
-                }
-
-                // CRITICAL: Call sync on initialization
-                syncNotesCache();
+                let tempTextboxOverlay = null; // Temporary DOM overlay for textbox preview
+                let lastNoteRect = null; // Store the last drawn rectangle for text rendering
 
                 // 4. Notes Panel (Bottom Sheet)
                 const notesPanel = document.createElement("div");
@@ -278,17 +275,41 @@
                 // Initialize canvas size
                 updateCanvasSize();
 
-                // Update canvas size on scroll and resize
-                let resizeTimeout;
-                window.addEventListener('scroll', () => {
-                    updateCanvasSize();
-                }, { passive: true });
+                // ResizeObserver: Handles page height changes (e.g., accordions, lazy-loaded content)
+                const resizeObserver = new ResizeObserver(() => {
+                    if (!rafTickingForScroll) {
+                        rafTickingForScroll = true;
+                        requestAnimationFrame(() => {
+                            updateCanvasSize();
+                            
+                            // Re-evaluate performance mode if page grew significantly
+                            const newHeight = document.documentElement.scrollHeight;
+                            if (newHeight > 10000 && !isExtremelyLongPage) {
+                                console.log('⚡ Page grew - GPU optimizations would help on next init');
+                            }
+                            
+                            rafTickingForScroll = false;
+                        });
+                    }
+                });
+                resizeObserver.observe(document.body);
 
+                // Handle window resize (RAF-optimized)
+                let rafTickingForResize = false;
+                let rafTickingForScroll = false;
+                
                 window.addEventListener('resize', () => {
-                    clearTimeout(resizeTimeout);
-                    resizeTimeout = setTimeout(() => {
-                        updateCanvasSize();
-                    }, 100);
+                    // Debounced resize with RAF
+                    if (rafTickingForResize) return;
+                    rafTickingForResize = true;
+                    
+                    // Debounce: wait 150ms after last resize event
+                    setTimeout(() => {
+                        requestAnimationFrame(() => {
+                            updateCanvasSize();
+                            rafTickingForResize = false;
+                        });
+                    }, 150);
                 });
 
                 // Handle Sidebar Clicks
@@ -307,12 +328,30 @@
 
 
                 document.getElementById('jn-close').addEventListener('click', () => {
+                    // Clean up any temporary textbox overlay
+                    if (tempTextboxOverlay) {
+                        tempTextboxOverlay.remove();
+                        tempTextboxOverlay = null;
+                    }
+                    
+                    // RAM ZERO EXIT STRATEGY: Force immediate GPU/RAM texture release
+                    canvas.width = 0;
+                    canvas.height = 0;
+                    
+                    // Disconnect ResizeObserver
+                    resizeObserver.disconnect();
+                    
+                    // Remove all extension elements
                     overlay.remove();
                     sidebar.remove();
                     notesPanel.remove();
                     snapshotPanel.remove();
+                    
+                    // Reset global state
                     window.hasJustNotesInjected = false;
                     document.body.style.cursor = "default";
+                    
+                    console.log('✓ Extension closed - RAM cleared');
                 });
 
                 document.getElementById('jn-open-notes').addEventListener('click', () => {
@@ -336,6 +375,16 @@
 
                 document.getElementById('clear-drawings').addEventListener('click', () => {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Clean up any temporary textbox overlay
+                    if (tempTextboxOverlay) {
+                        tempTextboxOverlay.remove();
+                        tempTextboxOverlay = null;
+                    }
+                    
+                    // Reset cursor and pointer events
+                    document.body.style.cursor = 'default';
+                    canvas.style.pointerEvents = 'none';
                 });
 
                 // Function to update snapshots UI
@@ -503,13 +552,25 @@
                 });
 
                 function activateTool(tool) {
+                    // Clean up any temporary textbox overlay
+                    if (tempTextboxOverlay) {
+                        tempTextboxOverlay.remove();
+                        tempTextboxOverlay = null;
+                    }
+                    
                     currentTool = tool;
                     if (tool === 'bin') {
+                        // Clear the canvas
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Reset cursor and pointer events
+                        document.body.style.cursor = 'default';
+                        canvas.style.pointerEvents = 'none';
+                        
                         return;
                     }
 
-                    // Enable canvas interaction
+                    // Enable canvas interaction (tool now has control)
                     canvas.style.pointerEvents = "auto";
 
                     if (tool === 'pencil') document.body.style.cursor = `url(${icons.pencil}) 0 20, auto`;
@@ -517,44 +578,14 @@
                     else if (tool === 'textbox') document.body.style.cursor = `url(${icons.textbox}) 0 20, auto`;
                 }
 
-                // Helper function to get document coordinates from mouse event
-                function getDocCoords(e) {
-                    const scrollX = window.scrollX || window.pageXOffset;
-                    const scrollY = window.scrollY || window.pageYOffset;
-                    return {
-                        x: e.clientX + scrollX,
-                        y: e.clientY + scrollY
-                    };
-                }
-
-                // Canvas Events - use document coordinates
+                // Canvas Events - Drawing logic only
                 canvas.addEventListener('mousedown', (e) => {
-                    // 1. CLICK SEARCH: Check if we clicked an existing note FIRST
-                    const coords = getDocCoords(e);
-                    const clickX = coords.x;
-                    const clickY = coords.y;
-
-                    // Search our local cache for a hit
-                    const clickedNote = cachedNotes.find(note => {
-                        if (!note.geometry) return false; // Ignore old notes without coordinates
-                        return (clickX >= note.geometry.x && clickX <= note.geometry.x + note.geometry.w &&
-                            clickY >= note.geometry.y && clickY <= note.geometry.y + note.geometry.h);
-                    });
-
-                    if (clickedNote) {
-                        // HIT FOUND: Show the note and STOP here
-                        displayNoteDialog(clickedNote);
-                        return;
-                    }
-
-                    // 2. DRAWING LOGIC: If no hit, proceed with standard tool logic
+                    // Only handle drawing when a tool is active
                     if (!currentTool || currentTool === 'bin') return;
 
-                    // Hide any open note dialog if we are starting a drawing
-                    removeExistingNoteDialog();
-
-                    startX = clickX;
-                    startY = clickY;
+                    const coords = getDocCoords(e);
+                    startX = coords.x;
+                    startY = coords.y;
 
                     isDrawing = true;
                     ctx.beginPath();
@@ -563,6 +594,17 @@
                         savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         // Generate random color for this selection
                         currentColor = `rgba(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, 0.7)`;
+                        
+                        // Create temporary DOM overlay for smooth preview (no canvas redraw lag)
+                        tempTextboxOverlay = document.createElement('div');
+                        tempTextboxOverlay.id = 'jn-temp-textbox-overlay';
+                        tempTextboxOverlay.style.cssText = `
+                            position: absolute;
+                            border: 2px solid ${currentColor};
+                            pointer-events: none;
+                            z-index: 2147483641;
+                        `;
+                        overlay.appendChild(tempTextboxOverlay);
                     }
                 });
 
@@ -574,6 +616,7 @@
                     const y = coords.y;
 
                     if (currentTool === 'pencil') {
+                        // Pencil needs smooth continuous lines - direct drawing
                         ctx.lineTo(x, y);
                         ctx.strokeStyle = "white";
                         ctx.lineWidth = 3;
@@ -581,14 +624,23 @@
                         ctx.shadowBlur = 5;
                         ctx.stroke();
                     } else if (currentTool === 'eraser') {
+                        // Eraser also needs to be responsive - direct erasing
                         ctx.clearRect(x - 15, y - 15, 30, 30);
-                    } else if (currentTool === 'textbox') {
-                        ctx.putImageData(savedImageData, 0, 0);
+                    } else if (currentTool === 'textbox' && tempTextboxOverlay) {
+                        // Textbox preview: Update DOM overlay instead of canvas (eliminates lag)
                         const w = x - startX;
                         const h = y - startY;
-                        ctx.strokeStyle = currentColor;
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(startX, startY, w, h);
+                        
+                        // Calculate position and dimensions for the overlay
+                        const left = w < 0 ? x : startX;
+                        const top = h < 0 ? y : startY;
+                        const width = Math.abs(w);
+                        const height = Math.abs(h);
+                        
+                        tempTextboxOverlay.style.left = `${left}px`;
+                        tempTextboxOverlay.style.top = `${top}px`;
+                        tempTextboxOverlay.style.width = `${width}px`;
+                        tempTextboxOverlay.style.height = `${height}px`;
                     }
                 });
 
@@ -601,12 +653,16 @@
                         const x = coords.x;
                         const y = coords.y;
 
-                        // Clear the selection rectangle
-                        ctx.putImageData(savedImageData, 0, 0);
+                        // Remove the temporary overlay
+                        if (tempTextboxOverlay) {
+                            tempTextboxOverlay.remove();
+                            tempTextboxOverlay = null;
+                        }
+
                         const w = x - startX;
                         const h = y - startY;
 
-                        // Re-draw the highlight permanently
+                        // Draw the final highlight to canvas (once, on mouseup only)
                         ctx.strokeStyle = currentColor;
                         ctx.lineWidth = 2;
                         ctx.strokeRect(startX, startY, w, h);
@@ -617,6 +673,8 @@
 
                         // Prevent accidental tiny clicks
                         if (Math.abs(w) > 20 && Math.abs(h) > 20) {
+                            // Store rectangle info for text rendering
+                            lastNoteRect = { x: startX, y: startY, w: w, h: h, color: currentColor };
                             // Pass document coordinates used for drawing, not viewport coords
                             createStickyNote(startX, startY, w, h);
                         }
@@ -667,37 +725,90 @@
                         }
                         sticky.remove();
                         document.removeEventListener('keydown', closeHandler);
-                        // Reset tool - disable pointer events on canvas
+                        
+                        // TOOL CLEANUP: Reset to browsing mode after saving
                         canvas.style.pointerEvents = "none";
                         currentTool = null;
                         document.body.style.cursor = "default";
+                        
+                        // Remove visual feedback from sidebar tools
+                        sidebar.querySelectorAll('img').forEach(img => img.style.transform = 'scale(1)');
                     };
                 }
 
+                // ZERO-LAG TEXT WRAPPING: Helper function for efficient text rendering
+                function wrapText(context, text, x, y, maxWidth, lineHeight) {
+                    const words = text.split(' ');
+                    const lines = [];
+                    let currentLine = '';
+
+                    words.forEach(word => {
+                        const testLine = currentLine ? currentLine + ' ' + word : word;
+                        const metrics = context.measureText(testLine);
+                        if (metrics.width > maxWidth && currentLine) {
+                            lines.push(currentLine);
+                            currentLine = word;
+                        } else {
+                            currentLine = testLine;
+                        }
+                    });
+                    if (currentLine) lines.push(currentLine);
+
+                    // Draw each line with high-contrast styling (fillText ONLY for performance)
+                    lines.forEach((line, index) => {
+                        const textY = y + (index * lineHeight);
+                        context.fillText(line, x, textY, maxWidth);
+                    });
+
+                    return lines.length; // Return number of lines drawn
+                }
+
                 function saveNote(content, docX, docY, w, h) {
+                    // TEXT-TO-CANVAS 'BURN': Draw text directly onto canvas for snapshot capture
+                    if (lastNoteRect) {
+                        const rect = lastNoteRect;
+                        const rectX = Math.min(rect.x, rect.x + rect.w);
+                        const rectY = Math.min(rect.y, rect.y + rect.h);
+                        const rectW = Math.abs(rect.w);
+                        const rectH = Math.abs(rect.h);
+
+                        // HIGH-CONTRAST STYLING: Bold 14px Arial for maximum readability
+                        ctx.font = 'bold 14px Arial';
+                        ctx.fillStyle = '#000000'; // Black text
+                        ctx.textBaseline = 'top';
+
+                        // Use wrapText helper for efficient rendering with padding
+                        const padding = 5;
+                        const maxWidth = rectW - (padding * 2);
+                        const lineHeight = 18;
+                        
+                        // Clip to rectangle bounds for clean rendering
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(rectX, rectY, rectW, rectH);
+                        ctx.clip();
+                        
+                        wrapText(ctx, content, rectX + padding, rectY + padding, maxWidth, lineHeight);
+                        
+                        ctx.restore();
+                        lastNoteRect = null; // Clear after use
+                    }
+
+                    // Save to storage (for Notes Panel view only - no geometry needed)
                     chrome.storage.local.get({ allNotes: [] }, (data) => {
                         const notes = data.allNotes;
 
-                        // Normalize coordinates to handle negative width/height (drag left/up)
-                        const geometry = {
-                            x: w < 0 ? docX + w : docX,
-                            y: h < 0 ? docY + h : docY,
-                            w: Math.abs(w),
-                            h: Math.abs(h)
-                        };
-
                         notes.push({
+                            id: Date.now(),
                             content: content,
                             title: content.substring(0, 15) + (content.length > 15 ? "..." : ""),
-                            coords: { x: docX, y: docY },
                             date: new Date().toISOString(),
                             boxColor: `${currentColor}`,
-                            sourceUrl: window.location.href,
-                            geometry: geometry
+                            sourceUrl: window.location.href
                         });
+                        
                         chrome.storage.local.set({ allNotes: notes }, () => {
-                            // CRITICAL: Update local cache after saving
-                            syncNotesCache();
+                            console.log('✓ Note saved and drawn on canvas');
 
                             // Flash sidebar button green to indicate save
                             const nBtn = document.getElementById('jn-open-notes');
@@ -844,62 +955,6 @@
                             container.appendChild(dateSection);
                         });
                     });
-                }
-                function removeExistingNoteDialog() {
-                    const existing = document.getElementById('jn-note-display-dialog');
-                    if (existing) existing.remove();
-                }
-
-                function displayNoteDialog(note) {
-                    removeExistingNoteDialog(); // Close any other open notes
-
-                    const dialog = document.createElement("div");
-                    dialog.id = 'jn-note-display-dialog';
-
-                    // CSS to make it look good but constrained
-                    dialog.style.cssText = `
-        position: absolute;
-        left: ${note.geometry.x}px;
-        top: ${note.geometry.y + note.geometry.h + 10}px;
-        width: 300px; 
-        max-width: 90vw;
-        max-height: 200px;
-        overflow-y: auto;
-        background: white;
-        border: 2px solid ${note.boxColor};
-        border-radius: 5px;
-        padding: 10px;
-        z-index: 2147483648;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        font-family: sans-serif;
-        color: black;
-    `;
-
-                    // Note Content
-                    const text = document.createElement("p");
-                    text.style.margin = "0";
-                    text.style.whiteSpace = "pre-wrap";
-                    text.textContent = note.content;
-
-                    // Close Hint
-                    const closeHint = document.createElement("div");
-                    closeHint.innerHTML = "<small>Click anywhere else to close</small>";
-                    closeHint.style.cssText = "margin-top:10px; color:#666; font-size:10px; text-align:right; border-top:1px solid #eee; padding-top:5px;";
-
-                    dialog.appendChild(text);
-                    dialog.appendChild(closeHint);
-                    document.body.appendChild(dialog);
-
-                    // Click-outside listener to close the dialog
-                    setTimeout(() => {
-                        const closeHandler = (e) => {
-                            if (!dialog.contains(e.target)) {
-                                dialog.remove();
-                                document.removeEventListener('click', closeHandler);
-                            }
-                        };
-                        document.addEventListener('click', closeHandler);
-                    }, 10);
                 }
 
                 sendResponse({ success: true, message: "Snapshot sidebar activated" });
