@@ -1,5 +1,17 @@
 (() => {
     // Prevent double-injection
+    // Optimization: Prevents the parser from running on every single keystroke.
+    // It waits for 'delay' ms of silence before executing 'func'.
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     if (window.hasJustNotesInjected) return;
     window.hasJustNotesInjected = true;
 
@@ -89,7 +101,7 @@
                 // 3. Drawing Canvas - single canvas covering entire document
                 const canvas = document.createElement("canvas");
                 canvas.id = "jn-drawing-canvas";
-                
+
                 // CONDITIONAL SETUP: Apply GPU optimizations only for extremely long pages
                 if (isExtremelyLongPage) {
                     canvas.style.cssText = `
@@ -112,7 +124,7 @@
                 }
 
                 const ctx = canvas.getContext("2d");
-                
+
                 // Performance optimization for extremely long pages
                 if (isExtremelyLongPage) {
                     ctx.imageSmoothingEnabled = false; // Speeds up drawing on huge bitmaps
@@ -154,7 +166,7 @@
                         ctx.putImageData(imageData, 0, 0);
                     }
                 }
-                
+
                 // Helper function to get document coordinates from mouse event
                 function getDocCoords(e) {
                     const scrollX = window.scrollX || window.pageXOffset;
@@ -281,13 +293,13 @@
                         rafTickingForScroll = true;
                         requestAnimationFrame(() => {
                             updateCanvasSize();
-                            
+
                             // Re-evaluate performance mode if page grew significantly
                             const newHeight = document.documentElement.scrollHeight;
                             if (newHeight > 10000 && !isExtremelyLongPage) {
                                 console.log('⚡ Page grew - GPU optimizations would help on next init');
                             }
-                            
+
                             rafTickingForScroll = false;
                         });
                     }
@@ -297,12 +309,12 @@
                 // Handle window resize (RAF-optimized)
                 let rafTickingForResize = false;
                 let rafTickingForScroll = false;
-                
+
                 window.addEventListener('resize', () => {
                     // Debounced resize with RAF
                     if (rafTickingForResize) return;
                     rafTickingForResize = true;
-                    
+
                     // Debounce: wait 150ms after last resize event
                     setTimeout(() => {
                         requestAnimationFrame(() => {
@@ -333,24 +345,24 @@
                         tempTextboxOverlay.remove();
                         tempTextboxOverlay = null;
                     }
-                    
+
                     // RAM ZERO EXIT STRATEGY: Force immediate GPU/RAM texture release
                     canvas.width = 0;
                     canvas.height = 0;
-                    
+
                     // Disconnect ResizeObserver
                     resizeObserver.disconnect();
-                    
+
                     // Remove all extension elements
                     overlay.remove();
                     sidebar.remove();
                     notesPanel.remove();
                     snapshotPanel.remove();
-                    
+
                     // Reset global state
                     window.hasJustNotesInjected = false;
                     document.body.style.cursor = "default";
-                    
+
                     console.log('✓ Extension closed - RAM cleared');
                 });
 
@@ -375,13 +387,13 @@
 
                 document.getElementById('clear-drawings').addEventListener('click', () => {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
+
                     // Clean up any temporary textbox overlay
                     if (tempTextboxOverlay) {
                         tempTextboxOverlay.remove();
                         tempTextboxOverlay = null;
                     }
-                    
+
                     // Reset cursor and pointer events
                     document.body.style.cursor = 'default';
                     canvas.style.pointerEvents = 'none';
@@ -557,16 +569,16 @@
                         tempTextboxOverlay.remove();
                         tempTextboxOverlay = null;
                     }
-                    
+
                     currentTool = tool;
                     if (tool === 'bin') {
                         // Clear the canvas
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        
+
                         // Reset cursor and pointer events
                         document.body.style.cursor = 'default';
                         canvas.style.pointerEvents = 'none';
-                        
+
                         return;
                     }
 
@@ -594,7 +606,7 @@
                         savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         // Generate random color for this selection
                         currentColor = `rgba(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, 0.7)`;
-                        
+
                         // Create temporary DOM overlay for smooth preview (no canvas redraw lag)
                         tempTextboxOverlay = document.createElement('div');
                         tempTextboxOverlay.id = 'jn-temp-textbox-overlay';
@@ -630,13 +642,13 @@
                         // Textbox preview: Update DOM overlay instead of canvas (eliminates lag)
                         const w = x - startX;
                         const h = y - startY;
-                        
+
                         // Calculate position and dimensions for the overlay
                         const left = w < 0 ? x : startX;
                         const top = h < 0 ? y : startY;
                         const width = Math.abs(w);
                         const height = Math.abs(h);
-                        
+
                         tempTextboxOverlay.style.left = `${left}px`;
                         tempTextboxOverlay.style.top = `${top}px`;
                         tempTextboxOverlay.style.width = `${width}px`;
@@ -684,40 +696,135 @@
                 function createStickyNote(x, y, w, h) {
                     const sticky = document.createElement("div");
                     sticky.style.cssText = `
-                        position: fixed;
-                        left: 50%;
-                        top: 50%;
-                        transform: translate(-50%, -50%);
-                        width: ${Math.abs(w)}px;
-                        min-width: 250px;
-                        max-width: 400px;
-                        background: white;
-                        border: 2px solid ${currentColor};
-                        padding: 15px;
-                        z-index: 2147483648;
-                        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-                        border-radius: 5px;
-                    `;
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: ${Math.abs(w)}px;
+        min-width: 300px;
+        max-width: 450px;
+        background: white;
+        border: 2px solid ${currentColor};
+        padding: 15px;
+        z-index: 2147483648;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        font-family: sans-serif;
+    `;
 
+                    // 1. HEADER ROW (Title + Help Button)
+                    const headerRow = document.createElement("div");
+                    headerRow.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
+
+                    const label = document.createElement("span");
+                    label.innerText = "Add Note";
+                    label.style.fontWeight = "bold";
+                    label.style.color = "#444";
+
+                    const helpToggle = document.createElement("button");
+                    helpToggle.innerText = "? Syntax";
+                    helpToggle.style.cssText = `
+        background: #f0f0f0; 
+        border: 1px solid #ccc; 
+        padding: 2px 8px; 
+        border-radius: 12px; 
+        font-size: 11px; 
+        cursor: pointer; 
+        color: #555;
+    `;
+
+                    headerRow.appendChild(label);
+                    headerRow.appendChild(helpToggle);
+                    sticky.appendChild(headerRow);
+
+                    // 2. SYNTAX HELP SECTION (Hidden by default)
+                    const helpSection = document.createElement("div");
+                    helpSection.style.cssText = `
+        display: none; /* Hidden initially */
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 11px;
+        line-height: 1.6;
+        color: #555;
+    `;
+                    helpSection.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+            <div><code>[title]...[/title]</code> <span style="color:#888">Header</span></div>
+            <div><code>!!(Text)</code> <span style="color:white; background: red; font-weight:bold;">Urgent / Important</span></div>
+            <div><code>[bold]...[/bold]</code> <b>Bold</b></div>
+            <div><code>[i]...[/i]</code> <i>Italic</i></div>
+            <div><code>==...==</code> <mark>Highlight</mark></div>
+            <div><code>---</code> <span style="color:#888">Divider</span></div>
+            <div><code>-&gt;</code> <span>&#8594; Arrow</span></div>
+
+        </div>
+    `;
+                    sticky.appendChild(helpSection);
+
+                    // Toggle Logic
+                    helpToggle.onclick = () => {
+                        if (helpSection.style.display === "none") {
+                            helpSection.style.display = "block";
+                            helpToggle.style.background = "#e2e6ea";
+                        } else {
+                            helpSection.style.display = "none";
+                            helpToggle.style.background = "#f0f0f0";
+                        }
+                    };
+
+                    // 3. TEXT AREA
                     const textarea = document.createElement("textarea");
-                    textarea.placeholder = "Type your note here...";
-                    textarea.style.cssText = "width:100%; height:80px; margin-bottom:10px; font-family:sans-serif;";
+                    textarea.placeholder = "Type your note here... (Click ? for formatting)";
+                    textarea.style.cssText = `
+        width: 100%; 
+        height: 100px; 
+        padding: 8px;
+        border: 1px solid #ddd; 
+        border-radius: 4px; 
+        font-family: 'Segoe UI', sans-serif; 
+        font-size: 13px;
+        resize: vertical;
+        box-sizing: border-box;
+    `;
 
+                    // Auto-focus logic
+                    setTimeout(() => textarea.focus(), 50);
+
+                    // 4. SAVE BUTTON
                     const btn = document.createElement("button");
                     btn.textContent = "Save Note";
-                    btn.style.cssText = `width:100%; background:${currentColor}; color:white; border:none; padding:8px; cursor:pointer; border-radius:3px;`;
+                    btn.style.cssText = `
+        width: 100%; 
+        background: ${currentColor}; 
+        color: white; 
+        border: none; 
+        padding: 10px; 
+        cursor: pointer; 
+        border-radius: 4px; 
+        font-weight: bold;
+        transition: opacity 0.2s;
+    `;
+                    btn.onmouseover = () => btn.style.opacity = "0.9";
+                    btn.onmouseout = () => btn.style.opacity = "1";
 
                     sticky.appendChild(textarea);
                     sticky.appendChild(btn);
                     document.body.appendChild(sticky);
-                    textarea.focus();
 
-                    // Remove sticky if clicked outside (simplified)
+                    // 5. EVENT LISTENERS
+
+                    // Close on Escape
                     const closeHandler = (e) => {
                         if (e.key === "Escape") sticky.remove();
                     };
                     document.addEventListener('keydown', closeHandler);
 
+                    // Save Logic
                     btn.onclick = () => {
                         const content = textarea.value.trim();
                         if (content) {
@@ -725,13 +832,11 @@
                         }
                         sticky.remove();
                         document.removeEventListener('keydown', closeHandler);
-                        
-                        // TOOL CLEANUP: Reset to browsing mode after saving
+
+                        // Reset tools
                         canvas.style.pointerEvents = "none";
                         currentTool = null;
                         document.body.style.cursor = "default";
-                        
-                        // Remove visual feedback from sidebar tools
                         sidebar.querySelectorAll('img').forEach(img => img.style.transform = 'scale(1)');
                     };
                 }
@@ -764,33 +869,9 @@
                 }
 
                 function saveNote(content, docX, docY, w, h) {
-                    // TEXT-TO-CANVAS 'BURN': Draw text directly onto canvas for snapshot capture
+                    // Note: Text is NOT drawn on canvas - only the highlight box is visible
+                    // Text is saved to notes panel only
                     if (lastNoteRect) {
-                        const rect = lastNoteRect;
-                        const rectX = Math.min(rect.x, rect.x + rect.w);
-                        const rectY = Math.min(rect.y, rect.y + rect.h);
-                        const rectW = Math.abs(rect.w);
-                        const rectH = Math.abs(rect.h);
-
-                        // HIGH-CONTRAST STYLING: Bold 14px Arial for maximum readability
-                        ctx.font = 'bold 14px Arial';
-                        ctx.fillStyle = '#000000'; // Black text
-                        ctx.textBaseline = 'top';
-
-                        // Use wrapText helper for efficient rendering with padding
-                        const padding = 5;
-                        const maxWidth = rectW - (padding * 2);
-                        const lineHeight = 18;
-                        
-                        // Clip to rectangle bounds for clean rendering
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.rect(rectX, rectY, rectW, rectH);
-                        ctx.clip();
-                        
-                        wrapText(ctx, content, rectX + padding, rectY + padding, maxWidth, lineHeight);
-                        
-                        ctx.restore();
                         lastNoteRect = null; // Clear after use
                     }
 
@@ -799,14 +880,14 @@
                         const notes = data.allNotes;
 
                         notes.push({
-                            id: Date.now(),
+                            id: Math.random().toString(36).substr(2, 9),
                             content: content,
                             title: content.substring(0, 15) + (content.length > 15 ? "..." : ""),
                             date: new Date().toISOString(),
                             boxColor: `${currentColor}`,
                             sourceUrl: window.location.href
                         });
-                        
+
                         chrome.storage.local.set({ allNotes: notes }, () => {
                             console.log('✓ Note saved and drawn on canvas');
 
@@ -816,6 +897,263 @@
                             setTimeout(() => nBtn.style.color = "green", 500);
                         });
                     });
+                }
+
+
+                function escapeHtml(text) {
+                    return text
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#039;");
+                }
+
+
+                function formatNotes(content) {
+                    try {
+                        // 1. ESCAPE HTML (Security First)
+                        let html = escapeHtml(content);
+
+                        // 2. BLOCK LEVEL REPLACEMENTS
+
+                        // Pattern: !!! Urgent Header !!!
+                        // Fix: Ensure it captures the rest of the line correctly
+                        html = html.replace(/^!!! (.*$)/gm, '<h1 class="note-urgent" style="color:red; font-weight:bold; font-size:1.5em; border-bottom:2px solid red;">$1</h1>');
+
+                        // Pattern: [title] ... [/title]
+                        // Fix: Use [\s\S]*? to allow titles to potentially span lines (though usually single line)
+                        html = html.replace(/\[title\]([\s\S]*?)\[\/title\]/g, '<div class="note-title" style="font-size:1.2em; font-weight:bold; margin-bottom:10px;">$1</div>');
+
+                        // Pattern: --- (Divider)
+                        // Fix: Ensure it matches a line that ONLY contains ---
+                        html = html.replace(/^---$/gm, '<hr style="border:0; border-top:1px solid #ccc; margin:10px 0;">');
+
+                        // 3. INLINE REPLACEMENTS
+
+                        // Pattern: [bold]...[/bold]
+                        html = html.replace(/\[bold\]([\s\S]*?)\[\/bold\]/g, '<strong>$1</strong>');
+
+                        // Pattern: !!(text) - Red tag
+                        html = html.replace(/!!\(([^)]*?)\)/g, '<span class="note-tag" style="background:red; color: white; padding:2px 6px; border-radius:3px; margin:0 2px;">$1</span>');
+
+                        // Pattern: [i]...[/i] (Italic)
+                        html = html.replace(/\[i\]([\s\S]*?)\[\/i\]/g, '<em>$1</em>');
+
+                        // Pattern: == Highlight ==
+                        html = html.replace(/==([\s\S]*?)==/g, '<mark style="background:#fff3cd; padding:0 2px;">$1</mark>');
+
+                        // Pattern: -> (Arrow Symbol)
+                        html = html.replace(/->/g, '&#8594;');
+
+                        // 4. PRESERVE LINE BREAKS
+                        // Since we are replacing content, standard \n might get lost in rendering if not handled.
+                        // We replace remaining newlines with <br> for HTML rendering.
+                        html = html.replace(/\n/g, '<br>');
+
+                        return html;
+
+                    } catch (err) {
+                        console.error("Error formatting note!!! " + err.message);
+                        return content; // Fallback to raw content on error
+                    }
+                }
+
+
+                function editNote(id) {
+                    try {
+                        // Prevent multiple edit modals
+                        const existingModal = document.getElementById('jn-edit-modal');
+                        if (existingModal) existingModal.remove();
+
+                        chrome.storage.local.get({ allNotes: [] }, (data) => {
+                            const note = data.allNotes.find(n => n.id === id);
+                            if (note) {
+                                const editModal = document.createElement('div');
+                                editModal.id = 'jn-edit-modal';
+                                editModal.style.cssText = `
+                                    position: fixed;
+                                    left: 50%;
+                                    top: 50%;
+                                    transform: translate(-50%, -50%);
+                                    width: 80%;
+                                    max-width: 600px;
+                                    background: white;
+                                    border: 2px solid ${note.boxColor || '#333'};
+                                    border-radius: 8px;
+                                    padding: 20px;
+                                    z-index: 2147483651;
+                                    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                                `;
+
+                                const title = document.createElement('h3');
+                                title.textContent = 'Edit Note';
+                                title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+
+                                const textarea = document.createElement('textarea');
+                                textarea.value = note.content;
+                                textarea.style.cssText = `
+                                    width: 100%;
+                                    height: 300px;
+                                    font-family: 'Segoe UI', sans-serif;
+                                    font-size: 14px;
+                                    padding: 10px;
+                                    border: 1px solid #ccc;
+                                    border-radius: 4px;
+                                    resize: vertical;
+                                    margin-bottom: 15px;
+                                `;
+
+                                const buttonContainer = document.createElement('div');
+                                buttonContainer.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end;';
+
+                                const saveBtn = document.createElement('button');
+                                saveBtn.textContent = 'Save';
+                                saveBtn.style.cssText = `
+                                    background: #28a745;
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 20px;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    font-size: 14px;
+                                `;
+                                saveBtn.onclick = () => {
+                                    const updatedContent = textarea.value.trim();
+                                    if (updatedContent) {
+                                        chrome.storage.local.get({ allNotes: [] }, (data) => {
+                                            const allNotes = data.allNotes;
+                                            const noteIndex = allNotes.findIndex(n => n.id === id);
+                                            if (noteIndex > -1) {
+                                                allNotes[noteIndex].content = updatedContent;
+                                                allNotes[noteIndex].title = updatedContent.substring(0, 15) + (updatedContent.length > 15 ? "..." : "");
+                                                chrome.storage.local.set({ allNotes }, () => {
+                                                    console.log('✓ Note updated');
+                                                    editModal.remove();
+                                                    loadNotes();
+                                                });
+                                            }
+                                        });
+                                    } else {
+                                        alert('Note cannot be empty!');
+                                    }
+                                };
+
+                                const cancelBtn = document.createElement('button');
+                                cancelBtn.textContent = 'Cancel';
+                                cancelBtn.style.cssText = `
+                                    background: #6c757d;
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 20px;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    font-size: 14px;
+                                `;
+                                cancelBtn.onclick = () => editModal.remove();
+
+                                buttonContainer.appendChild(saveBtn);
+                                buttonContainer.appendChild(cancelBtn);
+
+                                editModal.appendChild(title);
+                                editModal.appendChild(textarea);
+                                editModal.appendChild(buttonContainer);
+                                document.body.appendChild(editModal);
+
+                                textarea.focus();
+
+                                // Close on Escape key
+                                const escHandler = (e) => {
+                                    if (e.key === 'Escape') {
+                                        editModal.remove();
+                                        document.removeEventListener('keydown', escHandler);
+                                    }
+                                };
+                                document.addEventListener('keydown', escHandler);
+                            }
+                        });
+                    } catch (err) {
+                        alert("Error editing note: " + err.message);
+                    }
+                }
+
+                function getNotes(id) {
+                    try {
+                        // Prevent multiple modals
+                        const existingModal = document.getElementById('jn-note-modal');
+                        if (existingModal) existingModal.remove();
+
+                        chrome.storage.local.get({ allNotes: [] }, (data) => {
+                            const note = data.allNotes.find(n => n.id === id);
+                            if (note) {
+                                const noteDisplayBox = document.createElement('div');
+                                noteDisplayBox.id = 'jn-note-modal'; // ID for singleton control
+                                noteDisplayBox.style.cssText = `
+                    position: fixed;
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 80%;
+                    max-width: 600px; /* Limit width on large screens */
+                    max-height: 80vh;
+                    background: white;
+                    border: 2px solid ${note.boxColor || '#333'};
+                    border-radius: 8px;
+                    padding: 20px;
+                    z-index: 2147483650; /* Higher than everything */
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                    display: flex;
+                    flex-direction: column;
+                `;
+
+                                // Close Button
+                                const closeBtn = document.createElement('button');
+                                closeBtn.innerHTML = '✕';
+                                closeBtn.style.cssText = `
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: transparent;
+                    border: none;
+                    font-size: 18px;
+                    cursor: pointer;
+                    color: #666;
+                `;
+                                closeBtn.onclick = () => noteDisplayBox.remove();
+
+                                // Content Container
+                                const contentDiv = document.createElement('div');
+                                contentDiv.style.cssText = `
+                    width: 100%;
+                    overflow-y: auto;
+                    font-family: 'Segoe UI', sans-serif;
+                    font-size: 16px;
+                    line-height: 1.6;
+                    color: #333;
+                    margin-top: 15px; /* Space for close button */
+                `;
+
+                                // FORMAT THE CONTENT
+                                contentDiv.innerHTML = formatNotes(note.content);
+
+                                noteDisplayBox.appendChild(closeBtn);
+                                noteDisplayBox.appendChild(contentDiv);
+                                document.body.appendChild(noteDisplayBox);
+
+                                // Close on click outside
+                                const closeHandler = (e) => {
+                                    if (!noteDisplayBox.contains(e.target)) {
+                                        noteDisplayBox.remove();
+                                        document.removeEventListener('mousedown', closeHandler);
+                                    }
+                                };
+                                // Use setTimeout to avoid immediate trigger from the click that opened it
+                                setTimeout(() => document.addEventListener('mousedown', closeHandler), 0);
+                            }
+                        });
+                    } catch (err) {
+                        alert("Error retrieving note: " + err.message);
+                    }
                 }
 
                 function loadNotes() {
@@ -874,7 +1212,11 @@
                                     display: flex;
                                     flex-direction: column;
                                     justify-content: space-between;
+                                    cursor: pointer;
                                 `;
+                                card.onclick = () => {
+                                    getNotes(note.id);
+                                }
 
                                 // Delete Button (X)
                                 const deleteBtn = document.createElement('div');
@@ -898,7 +1240,8 @@
                                 `;
                                 deleteBtn.addEventListener('mouseover', () => deleteBtn.style.transform = 'scale(1.2)');
                                 deleteBtn.addEventListener('mouseout', () => deleteBtn.style.transform = 'scale(1)');
-                                deleteBtn.addEventListener('click', () => {
+                                deleteBtn.addEventListener('click', (e) => {
+                                    e.stopPropagation(); // Prevent card click
                                     if (confirm('Delete this note?')) {
                                         chrome.storage.local.get({ allNotes: [] }, (delData) => {
                                             const allNotes = delData.allNotes;
@@ -917,6 +1260,33 @@
                                             }
                                         });
                                     }
+                                });
+
+                                // Edit Button (✎)
+                                const editBtn = document.createElement('div');
+                                editBtn.innerHTML = '✎';
+                                editBtn.style.cssText = `
+                                    position: absolute;
+                                    top: 5px;
+                                    right: 30px;
+                                    width: 20px;
+                                    height: 20px;
+                                    background: #007bff;
+                                    color: white;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                    font-weight: bold;
+                                    transition: transform 0.2s;
+                                `;
+                                editBtn.addEventListener('mouseover', () => editBtn.style.transform = 'scale(1.2)');
+                                editBtn.addEventListener('mouseout', () => editBtn.style.transform = 'scale(1)');
+                                editBtn.addEventListener('click', (e) => {
+                                    e.stopPropagation(); // Prevent card click
+                                    editNote(note.id);
                                 });
 
                                 // Note Content (Scrollable, hidden scrollbar)
@@ -946,6 +1316,7 @@
                                 }
 
                                 card.appendChild(deleteBtn);
+                                card.appendChild(editBtn);
                                 card.appendChild(contentDiv);
                                 card.appendChild(urlDiv);
                                 dayGrid.appendChild(card);

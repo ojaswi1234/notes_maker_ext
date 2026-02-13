@@ -12,7 +12,10 @@
         "<all_urls>"
     ],
     "icons": {
-        "16": "images/pencil.png"
+        "16": "images/pencil.png",
+        "32": "images/pencil.png",
+        "48": "images/pencil.png",
+        "128": "images/pencil.png"
     },
     "background": {
         "service_worker": "background.js"
