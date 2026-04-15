@@ -79,13 +79,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             li.appendChild(editBtn);
 
+            const downloadBtnList = document.createElement('button');
+            downloadBtnList.textContent = '⬇';
+            downloadBtnList.title = 'Download';
+            downloadBtnList.style.backgroundColor = '#28a745';
+            downloadBtnList.style.borderColor = '#28a745';
+            downloadBtnList.style.color = 'white';
+            downloadBtnList.style.cursor = 'pointer';
+            downloadBtnList.style.padding = '2px 5px';
+            downloadBtnList.style.fontSize = '12px';
+            downloadBtnList.style.borderRadius = '3px';
+            downloadBtnList.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const blob = new Blob([`Title: ${note.title}\n\nContent: ${note.content}`], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const aDown = document.createElement('a');
+                aDown.href = url;
+                aDown.download = `${note.title || 'note'}.txt`;
+                aDown.click();
+                URL.revokeObjectURL(url);
+            });
+            li.appendChild(downloadBtnList);
+
             a.className = 'note-link';
             li.style.display = 'flex';
             li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
             li.style.gap= '5px';
             li.appendChild(a);
 
-            li.appendChild(editBtn);
+            // Removed duplicate editBtn append
            
             li.appendChild(deleteBtn); 
             

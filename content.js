@@ -717,12 +717,13 @@
 
                     // 1. HEADER ROW (Title + Help Button)
                     const headerRow = document.createElement("div");
-                    headerRow.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
+                    headerRow.style.cssText = "display: flex; justify-content: space-between; align-items: center; cursor: grab; user-select: none; padding-bottom: 5px; border-bottom: 1px solid #f0f0f0;";
 
                     const label = document.createElement("span");
                     label.innerText = "Add Note";
                     label.style.fontWeight = "bold";
                     label.style.color = "#444";
+                    label.style.pointerEvents = "none";
 
                     const helpToggle = document.createElement("button");
                     helpToggle.innerText = "? Syntax";
@@ -739,6 +740,49 @@
                     headerRow.appendChild(label);
                     headerRow.appendChild(helpToggle);
                     sticky.appendChild(headerRow);
+
+                    // --- DRAG LOGIC ---
+                    let isDraggingSticky = false;
+                    let dragOffsetX = 0;
+                    let dragOffsetY = 0;
+
+                    headerRow.addEventListener('mousedown', (e) => {
+                        if (e.target === helpToggle) return;
+                        isDraggingSticky = true;
+                        headerRow.style.cursor = 'grabbing';
+
+                        const rect = sticky.getBoundingClientRect();
+                        dragOffsetX = e.clientX - rect.left;
+                        dragOffsetY = e.clientY - rect.top;
+
+                        // Switch from center-aligned to fixed pixel position
+                        sticky.style.transform = 'none';
+                        sticky.style.left = `${rect.left}px`;
+                        sticky.style.top = `${rect.top}px`;
+                        sticky.style.margin = '0';
+                        
+                        e.preventDefault();
+                    });
+
+                    const handleDrag = (e) => {
+                        if (!isDraggingSticky) return;
+                        sticky.style.left = `${e.clientX - dragOffsetX}px`;
+                        sticky.style.top = `${e.clientY - dragOffsetY}px`;
+                    };
+
+                    const stopDrag = () => {
+                        isDraggingSticky = false;
+                        headerRow.style.cursor = 'grab';
+                    };
+
+                    document.addEventListener('mousemove', handleDrag);
+                    document.addEventListener('mouseup', stopDrag);
+
+                    const cleanupListeners = () => {
+                        document.removeEventListener('mousemove', handleDrag);
+                        document.removeEventListener('mouseup', stopDrag);
+                        document.removeEventListener('keydown', closeHandler);
+                    };
 
                     // 2. SYNTAX HELP SECTION (Hidden by default)
                     const helpSection = document.createElement("div");
@@ -758,7 +802,7 @@
             <div><code>!!(Text)</code> <span style="color:white; background: red; font-weight:bold;">Urgent / Important</span></div>
             <div><code>[bold]...[/bold]</code> <b>Bold</b></div>
             <div><code>[i]...[/i]</code> <i>Italic</i></div>
-            <div><code>==...==</code> <mark>Highlight</mark></div>
+            <div><code>::...::</code> <mark>Highlight</mark></div>
             <div><code>---</code> <span style="color:#888">Divider</span></div>
             <div><code>-&gt;</code> <span>&#8594; Arrow</span></div>
 
@@ -820,7 +864,10 @@
 
                     // Close on Escape
                     const closeHandler = (e) => {
-                        if (e.key === "Escape") sticky.remove();
+                        if (e.key === "Escape") {
+                            cleanupListeners();
+                            sticky.remove();
+                        }
                     };
                     document.addEventListener('keydown', closeHandler);
 
@@ -830,8 +877,8 @@
                         if (content) {
                             saveNote(content, x, y, w, h);
                         }
+                        cleanupListeners();
                         sticky.remove();
-                        document.removeEventListener('keydown', closeHandler);
 
                         // Reset tools
                         canvas.style.pointerEvents = "none";
@@ -940,8 +987,8 @@
                         // Pattern: [i]...[/i] (Italic)
                         html = html.replace(/\[i\]([\s\S]*?)\[\/i\]/g, '<em>$1</em>');
 
-                        // Pattern: == Highlight ==
-                        html = html.replace(/==([\s\S]*?)==/g, '<mark style="background:#fff3cd; padding:0 2px;">$1</mark>');
+                        // Pattern: :: Highlight ::
+                        html = html.replace(/::([\s\S]*?)::/g, '<mark style="background:#fff3cd; padding:0 2px;">$1</mark>');
 
                         // Pattern: -> (Arrow Symbol)
                         html = html.replace(/->/g, '&#8594;');
@@ -977,47 +1024,116 @@
                                     top: 50%;
                                     transform: translate(-50%, -50%);
                                     width: 80%;
-                                    max-width: 600px;
+                                    max-width: 500px;
                                     background: white;
-                                    border: 2px solid ${note.boxColor || '#333'};
-                                    border-radius: 8px;
-                                    padding: 20px;
+                                    border: 2px solid ${note.boxColor || '#007bff'};
+                                    border-radius: 12px;
+                                    padding: 0;
                                     z-index: 2147483651;
-                                    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                                    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+                                    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                                    overflow: hidden;
                                 `;
 
-                                const title = document.createElement('h3');
+                                const title = document.createElement('div');
                                 title.textContent = 'Edit Note';
-                                title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+                                title.style.cssText = `
+                                    margin: 0;
+                                    background: #f8f9fa;
+                                    color: #333;
+                                    cursor: grab;
+                                    user-select: none;
+                                    padding: 15px 20px;
+                                    border-bottom: 1px solid #eee;
+                                    font-weight: 600;
+                                    font-size: 16px;
+                                    display: flex;
+                                    align-items: center;
+                                `;
+
+                                // --- DRAG LOGIC FOR EDIT MODAL ---
+                                let isDraggingEdit = false;
+                                let dragOffsetX = 0;
+                                let dragOffsetY = 0;
+
+                                title.addEventListener('mousedown', (e) => {
+                                    isDraggingEdit = true;
+                                    title.style.cursor = 'grabbing';
+
+                                    const rect = editModal.getBoundingClientRect();
+                                    dragOffsetX = e.clientX - rect.left;
+                                    dragOffsetY = e.clientY - rect.top;
+
+                                    editModal.style.transform = 'none';
+                                    editModal.style.left = `${rect.left}px`;
+                                    editModal.style.top = `${rect.top}px`;
+                                    editModal.style.margin = '0';
+                                    
+                                    e.preventDefault();
+                                });
+
+                                const handleEditDrag = (e) => {
+                                    if (!isDraggingEdit) return;
+                                    editModal.style.left = `${e.clientX - dragOffsetX}px`;
+                                    editModal.style.top = `${e.clientY - dragOffsetY}px`;
+                                };
+
+                                const stopEditDrag = () => {
+                                    isDraggingEdit = false;
+                                    title.style.cursor = 'grab';
+                                };
+
+                                document.addEventListener('mousemove', handleEditDrag);
+                                document.addEventListener('mouseup', stopEditDrag);
+
+                                const cleanupEditListeners = () => {
+                                    document.removeEventListener('mousemove', handleEditDrag);
+                                    document.removeEventListener('mouseup', stopEditDrag);
+                                    document.removeEventListener('keydown', escHandler);
+                                };
+
+                                const contentArea = document.createElement('div');
+                                contentArea.style.padding = '20px';
 
                                 const textarea = document.createElement('textarea');
                                 textarea.value = note.content;
+                                textarea.placeholder = "Enter your note content...";
                                 textarea.style.cssText = `
                                     width: 100%;
-                                    height: 300px;
-                                    font-family: 'Segoe UI', sans-serif;
+                                    height: 250px;
+                                    font-family: inherit;
                                     font-size: 14px;
-                                    padding: 10px;
-                                    border: 1px solid #ccc;
-                                    border-radius: 4px;
+                                    padding: 12px;
+                                    border: 1px solid #ddd;
+                                    border-radius: 6px;
                                     resize: vertical;
                                     margin-bottom: 15px;
+                                    box-sizing: border-box;
+                                    outline: none;
+                                    transition: border-color 0.2s;
                                 `;
+                                textarea.onfocus = () => textarea.style.borderColor = note.boxColor || '#007bff';
+                                textarea.onblur = () => textarea.style.borderColor = '#ddd';
 
                                 const buttonContainer = document.createElement('div');
-                                buttonContainer.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end;';
+                                buttonContainer.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end;';
 
                                 const saveBtn = document.createElement('button');
-                                saveBtn.textContent = 'Save';
+                                saveBtn.textContent = 'Save Changes';
                                 saveBtn.style.cssText = `
-                                    background: #28a745;
+                                    background: ${note.boxColor || '#28a745'};
                                     color: white;
                                     border: none;
                                     padding: 10px 20px;
-                                    border-radius: 4px;
+                                    border-radius: 6px;
                                     cursor: pointer;
                                     font-size: 14px;
+                                    font-weight: 600;
+                                    transition: opacity 0.2s;
                                 `;
+                                saveBtn.onmouseover = () => saveBtn.style.opacity = '0.9';
+                                saveBtn.onmouseout = () => saveBtn.style.opacity = '1';
+
                                 saveBtn.onclick = () => {
                                     const updatedContent = textarea.value.trim();
                                     if (updatedContent) {
@@ -1029,6 +1145,7 @@
                                                 allNotes[noteIndex].title = updatedContent.substring(0, 15) + (updatedContent.length > 15 ? "..." : "");
                                                 chrome.storage.local.set({ allNotes }, () => {
                                                     console.log('✓ Note updated');
+                                                    cleanupEditListeners();
                                                     editModal.remove();
                                                     loadNotes();
                                                 });
@@ -1042,22 +1159,32 @@
                                 const cancelBtn = document.createElement('button');
                                 cancelBtn.textContent = 'Cancel';
                                 cancelBtn.style.cssText = `
-                                    background: #6c757d;
-                                    color: white;
-                                    border: none;
+                                    background: #f8f9fa;
+                                    color: #6c757d;
+                                    border: 1px solid #ddd;
                                     padding: 10px 20px;
-                                    border-radius: 4px;
+                                    border-radius: 6px;
                                     cursor: pointer;
                                     font-size: 14px;
+                                    font-weight: 600;
+                                    transition: background 0.2s;
                                 `;
-                                cancelBtn.onclick = () => editModal.remove();
+                                cancelBtn.onmouseover = () => cancelBtn.style.background = '#e9ecef';
+                                cancelBtn.onmouseout = () => cancelBtn.style.background = '#f8f9fa';
 
-                                buttonContainer.appendChild(saveBtn);
+                                cancelBtn.onclick = () => {
+                                    cleanupEditListeners();
+                                    editModal.remove();
+                                };
+
                                 buttonContainer.appendChild(cancelBtn);
+                                buttonContainer.appendChild(saveBtn);
+
+                                contentArea.appendChild(textarea);
+                                contentArea.appendChild(buttonContainer);
 
                                 editModal.appendChild(title);
-                                editModal.appendChild(textarea);
-                                editModal.appendChild(buttonContainer);
+                                editModal.appendChild(contentArea);
                                 document.body.appendChild(editModal);
 
                                 textarea.focus();
@@ -1065,8 +1192,8 @@
                                 // Close on Escape key
                                 const escHandler = (e) => {
                                     if (e.key === 'Escape') {
+                                        cleanupEditListeners();
                                         editModal.remove();
-                                        document.removeEventListener('keydown', escHandler);
                                     }
                                 };
                                 document.addEventListener('keydown', escHandler);
@@ -1089,49 +1216,64 @@
                                 const noteDisplayBox = document.createElement('div');
                                 noteDisplayBox.id = 'jn-note-modal'; // ID for singleton control
                                 noteDisplayBox.style.cssText = `
-                    position: fixed;
-                    left: 50%;
-                    top: 50%;
-                    transform: translate(-50%, -50%);
-                    width: 80%;
-                    max-width: 600px; /* Limit width on large screens */
-                    max-height: 80vh;
-                    background: white;
-                    border: 2px solid ${note.boxColor || '#333'};
-                    border-radius: 8px;
-                    padding: 20px;
-                    z-index: 2147483650; /* Higher than everything */
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-                    display: flex;
-                    flex-direction: column;
-                `;
+                                    position: fixed;
+                                    left: 50%;
+                                    top: 50%;
+                                    transform: translate(-50%, -50%);
+                                    width: 80%;
+                                    max-width: 600px;
+                                    max-height: 80vh;
+                                    background: white;
+                                    border: 2px solid ${note.boxColor || '#007bff'};
+                                    border-radius: 12px;
+                                    padding: 30px;
+                                    z-index: 2147483650;
+                                    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+                                    display: flex;
+                                    flex-direction: column;
+                                    font-family: 'Segoe UI', system-ui, sans-serif;
+                                `;
 
                                 // Close Button
                                 const closeBtn = document.createElement('button');
                                 closeBtn.innerHTML = '✕';
                                 closeBtn.style.cssText = `
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    background: transparent;
-                    border: none;
-                    font-size: 18px;
-                    cursor: pointer;
-                    color: #666;
-                `;
+                                    position: absolute;
+                                    top: 15px;
+                                    right: 15px;
+                                    background: #f8f9fa;
+                                    border: 1px solid #eee;
+                                    border-radius: 50%;
+                                    width: 30px;
+                                    height: 30px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 16px;
+                                    cursor: pointer;
+                                    color: #666;
+                                    transition: all 0.2s;
+                                `;
+                                closeBtn.onmouseover = () => {
+                                    closeBtn.style.background = '#ff6b6b';
+                                    closeBtn.style.color = 'white';
+                                };
+                                closeBtn.onmouseout = () => {
+                                    closeBtn.style.background = '#f8f9fa';
+                                    closeBtn.style.color = '#666';
+                                };
                                 closeBtn.onclick = () => noteDisplayBox.remove();
 
                                 // Content Container
                                 const contentDiv = document.createElement('div');
+                                contentDiv.className = 'jn-scroll-hidden';
                                 contentDiv.style.cssText = `
-                    width: 100%;
-                    overflow-y: auto;
-                    font-family: 'Segoe UI', sans-serif;
-                    font-size: 16px;
-                    line-height: 1.6;
-                    color: #333;
-                    margin-top: 15px; /* Space for close button */
-                `;
+                                    width: 100%;
+                                    overflow-y: auto;
+                                    font-size: 16px;
+                                    line-height: 1.6;
+                                    color: #333;
+                                `;
 
                                 // FORMAT THE CONTENT
                                 contentDiv.innerHTML = formatNotes(note.content);
@@ -1289,6 +1431,54 @@
                                     editNote(note.id);
                                 });
 
+                                // Download Button (⬇)
+                                const downloadBtn = document.createElement('div');
+                                downloadBtn.innerHTML = '⬇';
+                                downloadBtn.title = "Download Note";
+                                downloadBtn.style.cssText = `
+                                    position: absolute;
+                                    top: 5px;
+                                    right: 55px;
+                                    width: 20px;
+                                    height: 20px;
+                                    background: #28a745;
+                                    color: white;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                    font-weight: bold;
+                                    transition: transform 0.2s;
+                                `;
+                                downloadBtn.addEventListener('mouseover', () => downloadBtn.style.transform = 'scale(1.2)');
+                                downloadBtn.addEventListener('mouseout', () => downloadBtn.style.transform = 'scale(1)');
+                                downloadBtn.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    
+                                    // Strip formatting tags for download
+                                    let cleanContent = note.content
+                                        .replace(/\[title\]/g, "")
+                                        .replace(/\[\/title\]/g, "\n")
+                                        .replace(/\[bold\]/g, "")
+                                        .replace(/\[\/bold\]/g, "")
+                                        .replace(/\[i\]/g, "")
+                                        .replace(/\[\/i\]/g, "")
+                                        .replace(/::/g, "")
+                                        .replace(/^!!! /gm, "")
+                                        .replace(/^---$/gm, "__________")
+                                        .replace(/->/g, "→");
+
+                                    const blob = new Blob([cleanContent], { type: 'text/plain' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `note-${note.id}.txt`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                });
+
                                 // Note Content (Scrollable, hidden scrollbar)
                                 const contentDiv = document.createElement('div');
                                 contentDiv.className = "jn-scroll-hidden";
@@ -1317,6 +1507,7 @@
 
                                 card.appendChild(deleteBtn);
                                 card.appendChild(editBtn);
+                                card.appendChild(downloadBtn);
                                 card.appendChild(contentDiv);
                                 card.appendChild(urlDiv);
                                 dayGrid.appendChild(card);
